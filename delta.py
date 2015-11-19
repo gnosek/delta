@@ -134,7 +134,7 @@ def parse(line, flex=True):
     raw_fmt = re.sub(r'(\s*)([0-9]+(?:\.[0-9]+)?)', value, raw_fmt)
     fmt = Format(raw_fmt, val_formats)
 
-    rx_line = re.sub(r'([()\[\]^$\\])', r'\\\1', line)
+    rx_line = re.sub(r'([()\[\]^$\\|])', r'\\\1', line)
     rx_str = re.sub(r'(\s*[0-9]+(?:\.[0-9]+)?)', r'(\s*[0-9]+(?:\.[0-9]+)?)', rx_line)
     rx = re.compile(rx_str)
 
