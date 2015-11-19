@@ -179,15 +179,15 @@ def command_feed(cmd, interval):
 
 
 @click.command()
-@click.option('-t', '--timestamps/--no-timestamps', help='Show timestamps on all output lines')
+@click.option('-t/-T', '--timestamps/--no-timestamps', help='Show timestamps on all output lines')
 @click.option('-i', '--interval', metavar='SECONDS', type=click.INT,
     help='Interval between command runs', default=1)
-@click.option('-f', '--flex/--no-flex', help='Tweak column widths for better output (default is on)', default=True)
-@click.option('-s', '--separators/--no-separators', help='Show separators between chunks of output (default is on)', default=True)
+@click.option('-f/-F', '--flex/--no-flex', help='Tweak column widths for better output (default is on)', default=True)
+@click.option('-s/-S', '--separators/--no-separators', help='Show separators between chunks of output (default is on)', default=True)
 @click.option('-c', '--color', type=click.Choice(['never', 'auto', 'always']), help='Color output', default='auto')
-@click.option('-o', '--orig/--no-orig', help='Show original output interleaved with deltas')
-@click.option('-z', '--skip-zeros/--with-zeros', help='Skip all-zero deltas')
-@click.option('-a', '--absolute/--relative', help='Show deltas from original value, not last')
+@click.option('-o/-O', '--orig/--no-orig', help='Show original output interleaved with deltas')
+@click.option('-z/-Z', '--skip-zeros/--with-zeros', help='Skip all-zero deltas')
+@click.option('-a/-A', '--absolute/--relative', help='Show deltas from original value, not last')
 @click.argument('cmd', nargs=-1, required=False)
 def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):
     if cmd:
