@@ -142,14 +142,15 @@ def parse(line, flex=True):
     return fmt.format(*values, plus='', use_colors=False)
 
 
-def process(line, flex):
+def process(line, flex, absolute):
     global formats
     for rx, (fmt, old_values) in formats.items():
         m = rx.match(line)
         if m:
             values = [num(v) for v in m.groups()]
             deltas = [n-o for n, o in zip(values, old_values)]
-            formats[rx] = (fmt, values)
+            if not absolute:
+                formats[rx] = (fmt, values)
             return fmt, deltas, values
 
     return parse(line, flex), None, None
@@ -186,8 +187,9 @@ def command_feed(cmd, interval):
 @click.option('-c', '--color', type=click.Choice(['never', 'auto', 'always']), help='Color output', default='auto')
 @click.option('-o', '--orig/--no-orig', help='Show original output interleaved with deltas')
 @click.option('-z', '--skip-zeros/--with-zeros', help='Skip all-zero deltas')
+@click.option('-a', '--absolute/--relative', help='Show deltas from original value, not last')
 @click.argument('cmd', nargs=-1, required=False)
-def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros):
+def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):
     if cmd:
         feed = command_feed(cmd, interval)
     else:
@@ -214,7 +216,7 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros):
     try:
         print_sep = True
         for line, want_sep in feed:
-            fmt, deltas, values = process(line, flex)
+            fmt, deltas, values = process(line, flex, absolute)
             if values is None:
                 p(fmt)
                 continue
