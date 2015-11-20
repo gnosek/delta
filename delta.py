@@ -89,7 +89,49 @@ class ValueFormat(object):
     def format(self, *values, **kwargs):
         return self.format_str(**kwargs).format(*values)
 
-formats = {}
+
+class Parser(object):
+    def __init__(self, flex=True, absolute=False):
+        self.formats = {}
+        self.values = {}
+        self.flex = flex
+        self.absolute = absolute
+
+    def parse(self, line):
+        values = []
+        val_formats = []
+        def value(v):
+            val, fmt = parse_num(v, u'+', self.flex)
+            values.append(val)
+            val_formats.append(fmt)
+            return u'{}'
+
+        raw_fmt = line.replace(u'{', u'{{').replace(u'}', u'}}')
+        raw_fmt = re.sub(r'(\s*)([0-9]+(?:\.[0-9]+)?)', value, raw_fmt)
+        fmt = Format(raw_fmt, val_formats)
+
+        rx_line = re.sub(r'([()\[\]^$\\|])', r'\\\1', line)
+        rx_str = re.sub(r'(\s*[0-9]+(?:\.[0-9]+)?)', r'(\s*[0-9]+(?:\.[0-9]+)?)', rx_line)
+        rx = re.compile(rx_str)
+
+        self.formats[rx] = fmt
+        self.values[rx] = values
+
+        return fmt.format(*values, plus=u'', use_colors=False)
+
+    def process(self, line):
+        for rx, fmt in self.formats.items():
+            m = rx.match(line)
+            if m:
+                old_values = self.values[rx]
+                values = [num(v) for v in m.groups()]
+                deltas = [n-o for n, o in zip(values, old_values)]
+                if not self.absolute:
+                    self.values[rx] = values
+                return fmt, deltas, values
+
+        return None, None, None
+
 
 def parse_num(match, plus, flex):
     spaces, n = match.groups()
@@ -128,40 +170,6 @@ def num(n):
         return int(n)
     return float(n)
 
-def parse(line, flex=True):
-    global formats
-    values = []
-    val_formats = []
-    def value(v):
-        val, fmt = parse_num(v, u'+', flex)
-        values.append(val)
-        val_formats.append(fmt)
-        return u'{}'
-
-    raw_fmt = line.replace(u'{', u'{{').replace(u'}', u'}}')
-    raw_fmt = re.sub(r'(\s*)([0-9]+(?:\.[0-9]+)?)', value, raw_fmt)
-    fmt = Format(raw_fmt, val_formats)
-
-    rx_line = re.sub(r'([()\[\]^$\\|])', r'\\\1', line)
-    rx_str = re.sub(r'(\s*[0-9]+(?:\.[0-9]+)?)', r'(\s*[0-9]+(?:\.[0-9]+)?)', rx_line)
-    rx = re.compile(rx_str)
-
-    formats[rx] = (fmt, values)
-    return fmt.format(*values, plus=u'', use_colors=False)
-
-
-def process(line, flex, absolute):
-    global formats
-    for rx, (fmt, old_values) in formats.items():
-        m = rx.match(line)
-        if m:
-            values = [num(v) for v in m.groups()]
-            deltas = [n-o for n, o in zip(values, old_values)]
-            if not absolute:
-                formats[rx] = (fmt, values)
-            return fmt, deltas, values
-
-    return parse(line, flex), None, None
 
 
 def stdin_feed(sep_interval):
@@ -213,6 +221,8 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
     else:
         color = os.isatty(sys.stdout.fileno())
 
+    parser = Parser(flex, absolute)
+
     def p(line, with_sep=False):
         if with_sep:
             if timestamps:
@@ -227,13 +237,13 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
     try:
         print_sep = True
         for line, want_sep in feed:
-            fmt, deltas, values = process(line, flex, absolute)
-            if values is None:
-                p(fmt)
+            fmt, deltas, values = parser.process(line)
+            if fmt is None:
+                p(parser.parse(line))
                 continue
             all_zeros = all(d == 0 for d in deltas)
             print_sep = print_sep or want_sep
-            with_sep = separators and print_sep and len(formats) > 1
+            with_sep = separators and print_sep and len(parser.formats) > 1
             if orig:
                 print_sep = False
                 if len(values):
