@@ -10,6 +10,7 @@ import subprocess
 import os
 import colors
 import string
+import locale
 
 class Format(object):
     def __init__(self, fmt, fmts, colors=True):
@@ -168,6 +169,7 @@ def stdin_feed(sep_interval):
 
 
 def command_feed(cmd, interval):
+    _, encoding = locale.getdefaultlocale()
     if len(cmd) == 1:
         shell = os.getenv(u'SHELL', u'/bin/sh')
         cmd = (shell, u'-c') + cmd
@@ -175,7 +177,7 @@ def command_feed(cmd, interval):
         output = subprocess.check_output(cmd)
         first = True
         for line in output.splitlines():
-            yield line + u'\n', first
+            yield line.decode(encoding) + u'\n', first
             first = False
         time.sleep(interval)
 
