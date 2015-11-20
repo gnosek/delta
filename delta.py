@@ -12,6 +12,11 @@ import colors
 import string
 import locale
 
+if sys.version_info[0] == 2:
+    import codecs
+    _, encoding = locale.getdefaultlocale()
+    sys.stdout = codecs.getwriter(encoding)(sys.stdout)
+
 class Format(object):
     def __init__(self, fmt, fmts, colors=True):
         self.fmt = fmt
@@ -163,6 +168,8 @@ def stdin_feed(sep_interval):
     while True:
         ts = time.time()
         line = sys.stdin.readline()
+        if sys.version_info[0] == 2:
+            line = line.decode(encoding)
         if not line:
             break
         yield line, (time.time() - ts) > sep_interval
