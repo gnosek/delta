@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import division, absolute_import, print_function
+
 import re
 import click
 import sys
@@ -36,26 +38,26 @@ class Format(object):
         last_seen = None
         fmt = []
         for c in self.fmt:
-            if c == '{':
-                if last_seen == '{': # escaped {
-                    fmt.append(' ')
+            if c == u'{':
+                if last_seen == u'{': # escaped {
+                    fmt.append(u' ')
                     last_seen = None
                     continue
-            elif c == '}':
-                if last_seen == '}': # escaped }
-                    fmt.append(' ')
+            elif c == u'}':
+                if last_seen == u'}': # escaped }
+                    fmt.append(u' ')
                     last_seen = None
                     continue
-                elif last_seen == '{': # real format str
-                    fmt.append('{}')
+                elif last_seen == u'{': # real format str
+                    fmt.append(u'{}')
                     last_seen = None
                     continue
             elif c in string.whitespace:
                 fmt.append(c)
             else:
-                fmt.append(' ')
+                fmt.append(u' ')
             last_seen = c
-        return ''.join(fmt)
+        return u''.join(fmt)
 
     def format_wsp(self, *values, **kwargs):
         formatted_vals = [self.colorize(val, fmt, **kwargs) for fmt, val in zip(self.val_fmts, values)]
@@ -76,7 +78,7 @@ class ValueFormat(object):
         if plus is None: plus = self.plus
         if width is None: width = self.width
         if fmt is None: fmt = self.fmt
-        return '%s{:%s%s%s%s}' % (prefix, align, plus, width, fmt)
+        return u'%s{:%s%s%s%s}' % (prefix, align, plus, width, fmt)
 
     def format(self, *values, **kwargs):
         return self.format_str(**kwargs).format(*values)
@@ -86,37 +88,37 @@ formats = {}
 def parse_num(match, plus, flex):
     spaces, n = match.groups()
 
-    prefix = ''
+    prefix = u''
     width = len(n)
-    align = '<'
+    align = u'<'
 
     if spaces:
-        prefix = ' '
+        prefix = u' '
         width += len(spaces) - 1
-        align = ''
+        align = u''
     elif match.start(1) == 0:
-        align = ''
+        align = u''
 
-    if '.' not in n:
-        if align == '' and flex and width < 2:
+    if u'.' not in n:
+        if align == u'' and flex and width < 2:
             width = 2
-        if len(n) > 1 and n.startswith('0'):
-            width = '0{}'.format(width)
-            align = ''
+        if len(n) > 1 and n.startswith(u'0'):
+            width = u'0{}'.format(width)
+            align = u''
 
-        return int(n), ValueFormat(prefix, align, plus, width, '')
+        return int(n), ValueFormat(prefix, align, plus, width, u'')
 
-    whole, frac = n.split('.', 1)
+    whole, frac = n.split(u'.', 1)
     frac_len = len(frac)
-    if align == '' and flex and width < frac_len + 3:
+    if align == u'' and flex and width < frac_len + 3:
         width = frac_len + 3
-    if len(whole) > 1 and whole.startswith('0'):
-        width = '0{}'.format(width)
-        align = ''
-    return float(n), ValueFormat(prefix, align, plus, width, '.%df' % len(frac))
+    if len(whole) > 1 and whole.startswith(u'0'):
+        width = u'0{}'.format(width)
+        align = u''
+    return float(n), ValueFormat(prefix, align, plus, width, u'.%df' % len(frac))
 
 def num(n):
-    if '.' not in n:
+    if u'.' not in n:
         return int(n)
     return float(n)
 
@@ -125,12 +127,12 @@ def parse(line, flex=True):
     values = []
     val_formats = []
     def value(v):
-        val, fmt = parse_num(v, '+', flex)
+        val, fmt = parse_num(v, u'+', flex)
         values.append(val)
         val_formats.append(fmt)
-        return '{}'
+        return u'{}'
 
-    raw_fmt = line.replace('{', '{{').replace('}', '}}')
+    raw_fmt = line.replace(u'{', u'{{').replace(u'}', u'}}')
     raw_fmt = re.sub(r'(\s*)([0-9]+(?:\.[0-9]+)?)', value, raw_fmt)
     fmt = Format(raw_fmt, val_formats)
 
@@ -139,7 +141,7 @@ def parse(line, flex=True):
     rx = re.compile(rx_str)
 
     formats[rx] = (fmt, values)
-    return fmt.format(*values, plus='', use_colors=False)
+    return fmt.format(*values, plus=u'', use_colors=False)
 
 
 def process(line, flex, absolute):
@@ -167,37 +169,37 @@ def stdin_feed(sep_interval):
 
 def command_feed(cmd, interval):
     if len(cmd) == 1:
-        shell = os.getenv('SHELL', '/bin/sh')
-        cmd = (shell, '-c') + cmd
+        shell = os.getenv(u'SHELL', u'/bin/sh')
+        cmd = (shell, u'-c') + cmd
     while True:
         output = subprocess.check_output(cmd)
         first = True
         for line in output.splitlines():
-            yield line + '\n', first
+            yield line + u'\n', first
             first = False
         time.sleep(interval)
 
 
 @click.command()
-@click.option('-t/-T', '--timestamps/--no-timestamps', help='Show timestamps on all output lines')
-@click.option('-i', '--interval', metavar='SECONDS', type=click.INT,
-    help='Interval between command runs', default=1)
-@click.option('-f/-F', '--flex/--no-flex', help='Tweak column widths for better output (default is on)', default=True)
-@click.option('-s/-S', '--separators/--no-separators', help='Show separators between chunks of output (default is on)', default=True)
-@click.option('-c', '--color', type=click.Choice(['never', 'auto', 'always']), help='Color output', default='auto')
-@click.option('-o/-O', '--orig/--no-orig', help='Show original output interleaved with deltas')
-@click.option('-z/-Z', '--skip-zeros/--with-zeros', help='Skip all-zero deltas')
-@click.option('-a/-A', '--absolute/--relative', help='Show deltas from original value, not last')
-@click.argument('cmd', nargs=-1, required=False)
+@click.option(u'-t/-T', u'--timestamps/--no-timestamps', help=u'Show timestamps on all output lines')
+@click.option(u'-i', u'--interval', metavar=u'SECONDS', type=click.INT,
+    help=u'Interval between command runs', default=1)
+@click.option(u'-f/-F', u'--flex/--no-flex', help=u'Tweak column widths for better output (default is on)', default=True)
+@click.option(u'-s/-S', u'--separators/--no-separators', help=u'Show separators between chunks of output (default is on)', default=True)
+@click.option(u'-c', u'--color', type=click.Choice([u'never', u'auto', u'always']), help=u'Color output', default=u'auto')
+@click.option(u'-o/-O', u'--orig/--no-orig', help=u'Show original output interleaved with deltas')
+@click.option(u'-z/-Z', u'--skip-zeros/--with-zeros', help=u'Skip all-zero deltas')
+@click.option(u'-a/-A', u'--absolute/--relative', help=u'Show deltas from original value, not last')
+@click.argument(u'cmd', nargs=-1, required=False)
 def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):
     if cmd:
         feed = command_feed(cmd, interval)
     else:
         feed = stdin_feed(interval * 0.8)
 
-    if color == 'never':
+    if color == u'never':
         color = False
-    elif color == 'always':
+    elif color == u'always':
         color = True
     else:
         color = os.isatty(sys.stdout.fileno())
@@ -205,11 +207,11 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
     def p(line, with_sep=False):
         if with_sep:
             if timestamps:
-                sys.stdout.write(time.asctime() + '\n')
+                sys.stdout.write(u'{}\n'.format(time.asctime()))
             else:
-                sys.stdout.write('--- {}\n'.format(time.asctime()))
+                sys.stdout.write(u'--- {}\n'.format(time.asctime()))
         if timestamps:
-            sys.stdout.write('{}: '.format(time.asctime()))
+            sys.stdout.write(u'{}: '.format(time.asctime()))
         sys.stdout.write(line)
         sys.stdout.flush()
 
@@ -226,7 +228,7 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
             if orig:
                 print_sep = False
                 if len(values):
-                    p(fmt.format(*values, plus='', use_colors=False), with_sep=with_sep)
+                    p(fmt.format(*values, plus=u'', use_colors=False), with_sep=with_sep)
                     if not skip_zeros or not all_zeros:
                         p(fmt.format_wsp(*deltas, use_colors=color))
                 else:
@@ -241,5 +243,5 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
     except IOError:
         return
 
-if __name__ == '__main__':
+if __name__ == u'__main__':
     cli()
