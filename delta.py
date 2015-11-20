@@ -18,6 +18,9 @@ if sys.version_info[0] == 2:
     sys.stdout = codecs.getwriter(encoding)(sys.stdout)
 
 
+separator = object()
+
+
 class Format(object):
     def __init__(self, fmt, fmts, colors=True, **val_kwargs):
         self.fmt = fmt
@@ -165,7 +168,7 @@ class Parser(object):
         self.formats[rx] = fmt
         self.values[rx] = values
 
-        return fmt.plain(), values, values
+        return fmt.plain(), None, values
 
     def process(self, line):
         for rx, fmt in self.formats.items():
@@ -181,6 +184,71 @@ class Parser(object):
         return self.parse(line)
 
 
+class Printer(object):
+    def __init__(self, fp, timestamps, separators, orig, skip_zeros):
+        self.fp = fp
+        self.timestamps = timestamps
+        self.separators = separators
+        self.orig = orig
+        self.skip_zeros = skip_zeros
+        self.separators_pending = 0
+        self.lines_since_sep = 0
+        self.multiline = False
+
+    def separator(self):
+        if self.separators:
+            if self.lines_since_sep == 1:
+                self.multiline = False
+            self.separators_pending += 1
+
+    def print_separator(self):
+        fp = self.fp
+        if self.timestamps:
+            fp.write(u'{}\n'.format(time.asctime()))
+        else:
+            fp.write(u'--- {}\n'.format(time.asctime()))
+        fp.flush()
+
+    def print_separator_if_needed(self):
+        if self.separators_pending == 0:
+            self.multiline = True
+
+        if self.separators_pending and (self.multiline or self.separators_pending > 1):
+            self.print_separator()
+            self.lines_since_sep = 0
+
+        self.separators_pending = 0
+        self.lines_since_sep += 1
+
+    def do_print_line(self, line):
+        fp = self.fp
+        if self.timestamps:
+            fp.write(u'{}: '.format(time.asctime()))
+        fp.write(line)
+        fp.flush()
+
+    def output(self, fmt, deltas, values):
+        if deltas is None:
+            self.print_separator_if_needed()
+            self.do_print_line(fmt.format(*values))
+            return
+
+        skip_delta = self.skip_zeros and all(d == 0 for d in deltas)
+
+        if self.orig:
+            self.print_separator_if_needed()
+            if len(values):
+                self.do_print_line(fmt.plain().format(*values))
+                if not skip_delta:
+                    self.do_print_line(fmt.format_wsp(*deltas))
+            else:
+                self.do_print_line(fmt.format(*values))
+        else:
+            if not skip_delta:
+                self.print_separator_if_needed()
+                self.do_print_line(fmt.format(*deltas))
+
+
 def stdin_feed(sep_interval):
     while True:
         ts = time.time()
@@ -189,7 +257,10 @@ def stdin_feed(sep_interval):
             line = line.decode(encoding)
         if not line:
             break
-        yield line, (time.time() - ts) > sep_interval
+        delta = time.time() - ts
+        if delta > sep_interval:
+            yield separator
+        yield line
 
 
 def command_feed(cmd, interval):
@@ -201,8 +272,10 @@ def command_feed(cmd, interval):
         output = subprocess.check_output(cmd)
         first = True
         for line in output.splitlines():
-            yield line.decode(encoding) + u'\n', first
-            first = False
+            if first:
+                first = False
+                yield separator
+            yield line.decode(encoding) + u'\n'
         time.sleep(interval)
 
 
@@ -221,7 +294,7 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
     if cmd:
         feed = command_feed(cmd, interval)
     else:
-        feed = stdin_feed(interval * 0.8)
+        feed = stdin_feed(interval)
 
     if color == u'never':
         color = False
@@ -231,38 +304,15 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
         color = os.isatty(sys.stdout.fileno())
 
     parser = Parser(flex, absolute, color)
-
-    def p(line, with_sep=False):
-        if with_sep:
-            if timestamps:
-                sys.stdout.write(u'{}\n'.format(time.asctime()))
-            else:
-                sys.stdout.write(u'--- {}\n'.format(time.asctime()))
-        if timestamps:
-            sys.stdout.write(u'{}: '.format(time.asctime()))
-        sys.stdout.write(line)
-        sys.stdout.flush()
+    printer = Printer(sys.stdout, timestamps, separators, orig, skip_zeros)
 
     try:
-        print_sep = True
-        for line, want_sep in feed:
+        for line in feed:
+            if line is separator:
+                printer.separator()
+                continue
             fmt, deltas, values = parser.process(line)
-
-            all_zeros = all(d == 0 for d in deltas)
-            print_sep = print_sep or want_sep
-            with_sep = separators and print_sep and len(parser.formats) > 1
-            if orig:
-                print_sep = False
-                if len(values):
-                    p(fmt.plain().format(*values), with_sep=with_sep)
-                    if values != deltas and (not skip_zeros or not all_zeros):
-                        p(fmt.format_wsp(*deltas))
-                else:
-                    p(fmt.format(*values), with_sep=with_sep)
-            else:
-                if not skip_zeros or not all_zeros:
-                    print_sep = False
-                    p(fmt.format(*deltas), with_sep=with_sep)
+            printer.output(fmt, deltas, values)
 
     except KeyboardInterrupt:
         pass
