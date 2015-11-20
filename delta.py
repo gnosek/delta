@@ -284,7 +284,9 @@ def command_feed(cmd, interval):
 @click.option(u'-i', u'--interval', metavar=u'SECONDS', type=click.INT,
     help=u'Interval between command runs', default=1)
 @click.option(u'-f/-F', u'--flex/--no-flex', help=u'Tweak column widths for better output (default is on)', default=True)
-@click.option(u'-s/-S', u'--separators/--no-separators', help=u'Show separators between chunks of output (default is on)', default=True)
+@click.option(u'--separators-auto', u'separators', flag_value=u'auto', help=u'Show chunk separators when needed (default)', default=True)
+@click.option(u'-s', u'--separators', u'separators', flag_value=u'always', help=u'Always show chunk separators')
+@click.option(u'-S', u'--no-separators', u'separators', flag_value=u'never', help=u'Never show chunk separators')
 @click.option(u'-c', u'--color', type=click.Choice([u'never', u'auto', u'always']), help=u'Color output', default=u'auto')
 @click.option(u'-o/-O', u'--orig/--no-orig', help=u'Show original output interleaved with deltas')
 @click.option(u'-z/-Z', u'--skip-zeros/--with-zeros', help=u'Skip all-zero deltas')
@@ -293,8 +295,12 @@ def command_feed(cmd, interval):
 def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):
     if cmd:
         feed = command_feed(cmd, interval)
+        separators = separators != 'never'
     else:
         feed = stdin_feed(interval)
+        separators = (
+            separators == 'always' or
+            (separators == 'auto' and skip_zeros and not timestamps))
 
     if color == u'never':
         color = False
