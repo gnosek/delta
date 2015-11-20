@@ -101,7 +101,8 @@ class Parser(object):
         values = []
         val_formats = []
         def value(v):
-            val, fmt = parse_num(v, u'+', self.flex)
+            val = num(v.group(2))
+            fmt = parse_num(v, self.flex)
             values.append(val)
             val_formats.append(fmt)
             return u'{}'
@@ -133,12 +134,13 @@ class Parser(object):
         return None, None, None
 
 
-def parse_num(match, plus, flex):
+def parse_num(match, flex):
     spaces, n = match.groups()
 
     prefix = u''
-    width = len(n)
     align = u'<'
+    plus = u'+'
+    width = len(n)
 
     if spaces:
         prefix = u' '
@@ -154,7 +156,7 @@ def parse_num(match, plus, flex):
             width = u'0{}'.format(width)
             align = u''
 
-        return int(n), ValueFormat(prefix, align, plus, width, u'')
+        return ValueFormat(prefix, align, plus, width, u'')
 
     whole, frac = n.split(u'.', 1)
     frac_len = len(frac)
@@ -163,7 +165,7 @@ def parse_num(match, plus, flex):
     if len(whole) > 1 and whole.startswith(u'0'):
         width = u'0{}'.format(width)
         align = u''
-    return float(n), ValueFormat(prefix, align, plus, width, u'.%df' % len(frac))
+    return ValueFormat(prefix, align, plus, width, u'.%df' % len(frac))
 
 def num(n):
     if u'.' not in n:
