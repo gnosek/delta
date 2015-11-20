@@ -17,6 +17,7 @@ if sys.version_info[0] == 2:
     _, encoding = locale.getdefaultlocale()
     sys.stdout = codecs.getwriter(encoding)(sys.stdout)
 
+
 class Format(object):
     def __init__(self, fmt, fmts, colors=True):
         self.fmt = fmt
@@ -71,6 +72,40 @@ class Format(object):
 
 
 class ValueFormat(object):
+    @staticmethod
+    def detect(match, flex=True):
+        spaces, n = match.groups()
+
+        prefix = u''
+        align = u'<'
+        plus = u'+'
+        width = len(n)
+
+        if spaces:
+            prefix = u' '
+            width += len(spaces) - 1
+            align = u''
+        elif match.start(1) == 0:
+            align = u''
+
+        if u'.' not in n:
+            if align == u'' and flex and width < 2:
+                width = 2
+            if len(n) > 1 and n.startswith(u'0'):
+                width = u'0{}'.format(width)
+                align = u''
+
+            return ValueFormat(prefix, align, plus, width, u'')
+
+        whole, frac = n.split(u'.', 1)
+        frac_len = len(frac)
+        if align == u'' and flex and width < frac_len + 3:
+            width = frac_len + 3
+        if len(whole) > 1 and whole.startswith(u'0'):
+            width = u'0{}'.format(width)
+            align = u''
+        return ValueFormat(prefix, align, plus, width, u'.%df' % len(frac))
+
     def __init__(self, prefix, align, plus, width, fmt):
         self.prefix = prefix
         self.align = align
@@ -97,12 +132,18 @@ class Parser(object):
         self.flex = flex
         self.absolute = absolute
 
+    @staticmethod
+    def num(n):
+        if u'.' not in n:
+            return int(n)
+        return float(n)
+
     def parse(self, line):
         values = []
         val_formats = []
         def value(v):
-            val = num(v.group(2))
-            fmt = parse_num(v, self.flex)
+            val = self.num(v.group(2))
+            fmt = ValueFormat.detect(v, self.flex)
             values.append(val)
             val_formats.append(fmt)
             return u'{}'
@@ -125,53 +166,13 @@ class Parser(object):
             m = rx.match(line)
             if m:
                 old_values = self.values[rx]
-                values = [num(v) for v in m.groups()]
+                values = [self.num(v) for v in m.groups()]
                 deltas = [n-o for n, o in zip(values, old_values)]
                 if not self.absolute:
                     self.values[rx] = values
                 return fmt, deltas, values
 
         return None, None, None
-
-
-def parse_num(match, flex):
-    spaces, n = match.groups()
-
-    prefix = u''
-    align = u'<'
-    plus = u'+'
-    width = len(n)
-
-    if spaces:
-        prefix = u' '
-        width += len(spaces) - 1
-        align = u''
-    elif match.start(1) == 0:
-        align = u''
-
-    if u'.' not in n:
-        if align == u'' and flex and width < 2:
-            width = 2
-        if len(n) > 1 and n.startswith(u'0'):
-            width = u'0{}'.format(width)
-            align = u''
-
-        return ValueFormat(prefix, align, plus, width, u'')
-
-    whole, frac = n.split(u'.', 1)
-    frac_len = len(frac)
-    if align == u'' and flex and width < frac_len + 3:
-        width = frac_len + 3
-    if len(whole) > 1 and whole.startswith(u'0'):
-        width = u'0{}'.format(width)
-        align = u''
-    return ValueFormat(prefix, align, plus, width, u'.%df' % len(frac))
-
-def num(n):
-    if u'.' not in n:
-        return int(n)
-    return float(n)
-
 
 
 def stdin_feed(sep_interval):
