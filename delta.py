@@ -19,10 +19,14 @@ if sys.version_info[0] == 2:
 
 
 class Format(object):
-    def __init__(self, fmt, fmts, colors=True):
+    def __init__(self, fmt, fmts, colors=True, **val_kwargs):
         self.fmt = fmt
         self.val_fmts = fmts
         self.colors = colors
+        self.val_kwargs = val_kwargs
+
+    def plain(self):
+        return self.__class__(self.fmt, self.val_fmts, False, plus=u'')
 
     def __repr__(self):
         return self.fmt
@@ -37,9 +41,11 @@ class Format(object):
                 return colors.red(s)
         return s
 
-    def format(self, *values, **kwargs):
-        formatted_vals = [self.colorize(val, fmt, **kwargs) for fmt, val in zip(self.val_fmts, values)]
-        return self.fmt.format(*formatted_vals)
+    def format_values(self, *values):
+        return [self.colorize(val, fmt, **self.val_kwargs) for fmt, val in zip(self.val_fmts, values)]
+
+    def format(self, *values):
+        return self.fmt.format(*self.format_values(*values))
 
     def format_str_with_spaces(self):
         last_seen = None
@@ -67,8 +73,7 @@ class Format(object):
         return u''.join(fmt)
 
     def format_wsp(self, *values, **kwargs):
-        formatted_vals = [self.colorize(val, fmt, **kwargs) for fmt, val in zip(self.val_fmts, values)]
-        return self.format_str_with_spaces().format(*formatted_vals)
+        return self.format_str_with_spaces().format(*self.format_values(*values, **kwargs))
 
 
 class ValueFormat(object):
@@ -126,11 +131,12 @@ class ValueFormat(object):
 
 
 class Parser(object):
-    def __init__(self, flex=True, absolute=False):
+    def __init__(self, flex=True, absolute=False, use_colors=True):
         self.formats = {}
         self.values = {}
         self.flex = flex
         self.absolute = absolute
+        self.use_colors = use_colors
 
     @staticmethod
     def num(n):
@@ -150,7 +156,7 @@ class Parser(object):
 
         raw_fmt = line.replace(u'{', u'{{').replace(u'}', u'}}')
         raw_fmt = re.sub(r'(\s*)([0-9]+(?:\.[0-9]+)?)', value, raw_fmt)
-        fmt = Format(raw_fmt, val_formats)
+        fmt = Format(raw_fmt, val_formats, self.use_colors)
 
         rx_line = re.sub(r'([()\[\]^$\\|])', r'\\\1', line)
         rx_str = re.sub(r'(\s*[0-9]+(?:\.[0-9]+)?)', r'(\s*[0-9]+(?:\.[0-9]+)?)', rx_line)
@@ -159,7 +165,7 @@ class Parser(object):
         self.formats[rx] = fmt
         self.values[rx] = values
 
-        return fmt.format(*values, plus=u'', use_colors=False)
+        return fmt.plain(), values, values
 
     def process(self, line):
         for rx, fmt in self.formats.items():
@@ -172,7 +178,7 @@ class Parser(object):
                     self.values[rx] = values
                 return fmt, deltas, values
 
-        return None, None, None
+        return self.parse(line)
 
 
 def stdin_feed(sep_interval):
@@ -224,7 +230,7 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
     else:
         color = os.isatty(sys.stdout.fileno())
 
-    parser = Parser(flex, absolute)
+    parser = Parser(flex, absolute, color)
 
     def p(line, with_sep=False):
         if with_sep:
@@ -241,24 +247,22 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
         print_sep = True
         for line, want_sep in feed:
             fmt, deltas, values = parser.process(line)
-            if fmt is None:
-                p(parser.parse(line))
-                continue
+
             all_zeros = all(d == 0 for d in deltas)
             print_sep = print_sep or want_sep
             with_sep = separators and print_sep and len(parser.formats) > 1
             if orig:
                 print_sep = False
                 if len(values):
-                    p(fmt.format(*values, plus=u'', use_colors=False), with_sep=with_sep)
-                    if not skip_zeros or not all_zeros:
-                        p(fmt.format_wsp(*deltas, use_colors=color))
+                    p(fmt.plain().format(*values), with_sep=with_sep)
+                    if values != deltas and (not skip_zeros or not all_zeros):
+                        p(fmt.format_wsp(*deltas))
                 else:
                     p(fmt.format(*values), with_sep=with_sep)
             else:
                 if not skip_zeros or not all_zeros:
                     print_sep = False
-                    p(fmt.format(*deltas, use_colors=color), with_sep=with_sep)
+                    p(fmt.format(*deltas), with_sep=with_sep)
 
     except KeyboardInterrupt:
         pass
