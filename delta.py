@@ -46,7 +46,7 @@ class StringChunk(object):
                 wsp.append(' ')
         return self.__class__(''.join(wsp))
 
-    def format(self, values, use_colors=True, **kwargs):
+    def format(self, values, use_colors=True):
         return self.static_str
 
     def as_regex(self):
@@ -102,13 +102,8 @@ class NumberChunk(object):
     def whitespace(self):
         return self
 
-    def format_str(self, prefix=None, align=None, plus=None, width=None, fmt=None):
-        if prefix is None: prefix = self.prefix
-        if align is None: align = self.align
-        if plus is None: plus = self.plus
-        if width is None: width = self.width
-        if fmt is None: fmt = self.fmt
-        return u'%s{0:%s%s%s%s}' % (prefix, align, plus, width, fmt)
+    def format_str(self):
+        return u'%s{0:%s%s%s%s}' % (self.prefix, self.align, self.plus, self.width, self.fmt)
 
     def __repr__(self):
         return self.format_str()
@@ -122,9 +117,9 @@ class NumberChunk(object):
                 return colors.red(s)
         return s
 
-    def format(self, values, use_colors=True, **kwargs):
+    def format(self, values, use_colors=True):
         value = values.pop(0)
-        s = self.format_str(**kwargs).format(value)
+        s = self.format_str().format(value)
         if use_colors:
             s = self.colorize(value, s)
         return s
