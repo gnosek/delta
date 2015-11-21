@@ -11,6 +11,10 @@ import os
 import colors
 import string
 import locale
+try:
+    from itertools import izip_longest
+except ImportError: # python 3
+    from itertools import zip_longest as izip_longest
 
 if sys.version_info[0] == 2:
     import codecs
@@ -21,69 +25,35 @@ if sys.version_info[0] == 2:
 separator = object()
 
 
-class Format(object):
-    def __init__(self, fmt, fmts, colors=True, **val_kwargs):
-        self.fmt = fmt
-        self.val_fmts = fmts
-        self.colors = colors
-        self.val_kwargs = val_kwargs
+class StringChunk(object):
+    def __init__(self, static_str):
+        self.static_str = static_str
 
     def plain(self):
-        return self.__class__(self.fmt, self.val_fmts, False, plus=u'')
+        return self
+
+    def whitespace(self):
+        wsp = []
+        for c in self.static_str:
+            if c in string.whitespace:
+                wsp.append(c)
+            else:
+                wsp.append(' ')
+        return self.__class__(''.join(wsp))
+
+    def format(self, values, use_colors=True, **kwargs):
+        return self.static_str
+
+    def as_regex(self):
+        return re.escape(self.static_str)
 
     def __repr__(self):
-        return self.fmt
-
-    def colorize(self, val, fmt, use_colors=None, **kwargs):
-        if use_colors is None: use_colors = self.colors
-        s = fmt.format(val, **kwargs)
-        if use_colors:
-            if val > 0:
-                return colors.green(s)
-            elif val < 0:
-                return colors.red(s)
-        return s
-
-    def format_values(self, *values):
-        return [self.colorize(val, fmt, **self.val_kwargs) for fmt, val in zip(self.val_fmts, values)]
-
-    def format(self, *values):
-        return self.fmt.format(*self.format_values(*values))
-
-    def format_str_with_spaces(self):
-        last_seen = None
-        fmt = []
-        for c in self.fmt:
-            if c == u'{':
-                if last_seen == u'{': # escaped {
-                    fmt.append(u' ')
-                    last_seen = None
-                    continue
-            elif c == u'}':
-                if last_seen == u'}': # escaped }
-                    fmt.append(u' ')
-                    last_seen = None
-                    continue
-                elif last_seen == u'{': # real format str
-                    fmt.append(u'{}')
-                    last_seen = None
-                    continue
-            elif c in string.whitespace:
-                fmt.append(c)
-            else:
-                fmt.append(u' ')
-            last_seen = c
-        return u''.join(fmt)
-
-    def format_wsp(self, *values, **kwargs):
-        return self.format_str_with_spaces().format(*self.format_values(*values, **kwargs))
+        return "'{!r}'".format(self.static_str)
 
 
-class ValueFormat(object):
+class NumberChunk(object):
     @staticmethod
-    def detect(match, flex=True):
-        spaces, n = match.groups()
-
+    def detect(spaces, n, first, flex=True):
         prefix = u''
         align = u'<'
         plus = u'+'
@@ -93,7 +63,7 @@ class ValueFormat(object):
             prefix = u' '
             width += len(spaces) - 1
             align = u''
-        elif match.start(1) == 0:
+        elif first:
             align = u''
 
         if u'.' not in n:
@@ -103,7 +73,7 @@ class ValueFormat(object):
                 width = u'0{}'.format(width)
                 align = u''
 
-            return ValueFormat(prefix, align, plus, width, u'')
+            return NumberChunk(prefix, align, plus, width, u'')
 
         whole, frac = n.split(u'.', 1)
         frac_len = len(frac)
@@ -112,7 +82,7 @@ class ValueFormat(object):
         if len(whole) > 1 and whole.startswith(u'0'):
             width = u'0{}'.format(width)
             align = u''
-        return ValueFormat(prefix, align, plus, width, u'.%df' % len(frac))
+        return NumberChunk(prefix, align, plus, width, u'.%df' % len(frac))
 
     def __init__(self, prefix, align, plus, width, fmt):
         self.prefix = prefix
@@ -120,6 +90,12 @@ class ValueFormat(object):
         self.plus = plus
         self.width = width
         self.fmt = fmt
+
+    def plain(self):
+        return self.__class__(self.prefix, self.align, u'', self.width, self.fmt)
+
+    def whitespace(self):
+        return self
 
     def format_str(self, prefix=None, align=None, plus=None, width=None, fmt=None):
         if prefix is None: prefix = self.prefix
@@ -129,13 +105,56 @@ class ValueFormat(object):
         if fmt is None: fmt = self.fmt
         return u'%s{:%s%s%s%s}' % (prefix, align, plus, width, fmt)
 
-    def format(self, *values, **kwargs):
-        return self.format_str(**kwargs).format(*values)
+    def __repr__(self):
+        return self.format_str()
+
+    @staticmethod
+    def colorize(val, s):
+        if val is not None:
+            if val > 0:
+                return colors.green(s)
+            elif val < 0:
+                return colors.red(s)
+        return s
+
+    def format(self, values, use_colors=True, **kwargs):
+        value = values.pop(0)
+        s = self.format_str(**kwargs).format(value)
+        if use_colors:
+            s = self.colorize(value, s)
+        return s
+
+    def as_regex(self):
+        return r'(\s*[0-9]+(?:\.[0-9]+)?)'
+
+
+class Format(object):
+    def __init__(self, chunks, colors=True):
+        self.chunks = chunks
+        self.colors = colors
+        self.regex = re.compile(''.join(c.as_regex() for c in self.chunks))
+
+    def plain(self):
+        return self.__class__([c.plain() for c in self.chunks], False)
+
+    def whitespace(self):
+        return self.__class__([c.whitespace() for c in self.chunks], self.colors)
+
+    def format_values(self, values, use_colors):
+        values = list(values)
+        if use_colors is None: use_colors = self.colors
+        for chunk in self.chunks:
+            yield chunk.format(values, use_colors)
+
+    def format(self, values, use_colors=None):
+        return ''.join(self.format_values(values, use_colors))
+
+    def __repr__(self):
+        return repr(self.chunks)
 
 
 class Parser(object):
     def __init__(self, flex=True, absolute=False, use_colors=True):
-        self.formats = {}
         self.values = {}
         self.flex = flex
         self.absolute = absolute
@@ -147,38 +166,35 @@ class Parser(object):
             return int(n)
         return float(n)
 
+    @staticmethod
+    def grouper(iterable, n, fillvalue=None):
+        args = [iter(iterable)] * n
+        return izip_longest(*args, fillvalue=fillvalue)
+
     def parse(self, line):
         values = []
-        val_formats = []
-        def value(v):
-            val = self.num(v.group(2))
-            fmt = ValueFormat.detect(v, self.flex)
-            values.append(val)
-            val_formats.append(fmt)
-            return u'{}'
+        chunks = []
 
-        raw_fmt = line.replace(u'{', u'{{').replace(u'}', u'}}')
-        raw_fmt = re.sub(r'(\s*)([0-9]+(?:\.[0-9]+)?)', value, raw_fmt)
-        fmt = Format(raw_fmt, val_formats, self.use_colors)
-
-        rx_line = re.sub(r'([()\[\]^$\\|])', r'\\\1', line)
-        rx_str = re.sub(r'(\s*[0-9]+(?:\.[0-9]+)?)', r'(\s*[0-9]+(?:\.[0-9]+)?)', rx_line)
-        rx = re.compile(rx_str)
-
-        self.formats[rx] = fmt
-        self.values[rx] = values
-
+        elts = re.split(r'(\s*)([0-9]+(?:\.[0-9]+)?)', line)
+        for i, (prefix, spaces, number) in enumerate(self.grouper(elts, 3)):
+            if prefix:
+                chunks.append(StringChunk(prefix))
+            if number is not None:
+                values.append(self.num(number))
+                chunks.append(NumberChunk.detect(spaces, number, i==0))
+                
+        fmt = Format(chunks, self.use_colors)
+        self.values[fmt] = values
         return fmt.plain(), None, values
 
     def process(self, line):
-        for rx, fmt in self.formats.items():
-            m = rx.match(line)
+        for fmt, old_values in self.values.items():
+            m = fmt.regex.match(line)
             if m:
-                old_values = self.values[rx]
                 values = [self.num(v) for v in m.groups()]
                 deltas = [n-o for n, o in zip(values, old_values)]
                 if not self.absolute:
-                    self.values[rx] = values
+                    self.values[fmt] = values
                 return fmt, deltas, values
 
         return self.parse(line)
@@ -230,7 +246,7 @@ class Printer(object):
     def output(self, fmt, deltas, values):
         if deltas is None:
             self.print_separator_if_needed()
-            self.do_print_line(fmt.format(*values))
+            self.do_print_line(fmt.format(values))
             return
 
         skip_delta = self.skip_zeros and all(d == 0 for d in deltas)
@@ -238,15 +254,15 @@ class Printer(object):
         if self.orig:
             self.print_separator_if_needed()
             if len(values):
-                self.do_print_line(fmt.plain().format(*values))
+                self.do_print_line(fmt.plain().format(values))
                 if not skip_delta:
-                    self.do_print_line(fmt.format_wsp(*deltas))
+                    self.do_print_line(fmt.whitespace().format(deltas))
             else:
-                self.do_print_line(fmt.format(*values))
+                self.do_print_line(fmt.format(values))
         else:
             if not skip_delta:
                 self.print_separator_if_needed()
-                self.do_print_line(fmt.format(*deltas))
+                self.do_print_line(fmt.format(deltas))
 
 
 def stdin_feed(sep_interval):
