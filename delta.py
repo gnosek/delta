@@ -75,7 +75,7 @@ class NumberChunk(object):
             if align == u'' and flex and width < 2:
                 width = 2
             if len(n) > 1 and n.startswith(u'0'):
-                width = u'0{}'.format(width)
+                width = u'0{0}'.format(width)
                 align = u''
 
             return NumberChunk(prefix, align, plus, width, u'')
@@ -85,7 +85,7 @@ class NumberChunk(object):
         if align == u'' and flex and width < frac_len + 3:
             width = frac_len + 3
         if len(whole) > 1 and whole.startswith(u'0'):
-            width = u'0{}'.format(width)
+            width = u'0{0}'.format(width)
             align = u''
         return NumberChunk(prefix, align, plus, width, u'.%df' % len(frac))
 
@@ -108,7 +108,7 @@ class NumberChunk(object):
         if plus is None: plus = self.plus
         if width is None: width = self.width
         if fmt is None: fmt = self.fmt
-        return u'%s{:%s%s%s%s}' % (prefix, align, plus, width, fmt)
+        return u'%s{0:%s%s%s%s}' % (prefix, align, plus, width, fmt)
 
     def __repr__(self):
         return self.format_str()
@@ -225,9 +225,9 @@ class Printer(object):
     def print_separator(self):
         fp = self.fp
         if self.timestamps:
-            fp.write(u'{}\n'.format(time.asctime()))
+            fp.write(u'{0}\n'.format(time.asctime()))
         else:
-            fp.write(u'--- {}\n'.format(time.asctime()))
+            fp.write(u'--- {0}\n'.format(time.asctime()))
         fp.flush()
 
     def print_separator_if_needed(self):
@@ -244,7 +244,7 @@ class Printer(object):
     def do_print_line(self, line):
         fp = self.fp
         if self.timestamps:
-            fp.write(u'{}: '.format(time.asctime()))
+            fp.write(u'{0}: '.format(time.asctime()))
         fp.write(line)
         fp.flush()
 
