@@ -21,6 +21,11 @@ if sys.version_info[0] == 2:
     _, encoding = locale.getdefaultlocale()
     sys.stdout = codecs.getwriter(encoding)(sys.stdout)
 
+    if not hasattr(subprocess, 'check_output'):
+        def check_output(cmd):
+            return subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()[0]
+        subprocess.check_output = check_output
+
 
 separator = object()
 
