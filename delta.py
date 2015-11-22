@@ -351,10 +351,8 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
             fmt, deltas, values = parser.process(line)
             printer.output(fmt, deltas, values)
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, IOError):
         pass
-    except IOError:
-        return
 
 if __name__ == u'__main__':
     cli()
