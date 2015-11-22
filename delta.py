@@ -310,6 +310,32 @@ def command_feed(cmd, interval):
         time.sleep(interval)
 
 
+def run(feed, parser, printer):
+    for line in feed:
+        if line is separator:
+            printer.separator()
+        else:
+            printer.output(*parser.process(line))
+
+
+def use_separators(cmd, separators, skip_zeros, timestamps):
+    if cmd:
+        return separators != 'never'
+    else:
+        return (
+            separators == 'always' or
+            (separators == 'auto' and skip_zeros and not timestamps))
+
+
+def use_colors(color, fd):
+    if color == u'never':
+        return False
+    elif color == u'always':
+        return True
+    else:
+        return os.isatty(fd.fileno())
+
+
 @click.command()
 @click.option(u'-t/-T', u'--timestamps/--no-timestamps', help=u'Show timestamps on all output lines')
 @click.option(u'-i', u'--interval', metavar=u'SECONDS', type=click.INT,
@@ -323,36 +349,23 @@ def command_feed(cmd, interval):
 @click.option(u'-z/-Z', u'--skip-zeros/--with-zeros', help=u'Skip all-zero deltas')
 @click.option(u'-a/-A', u'--absolute/--relative', help=u'Show deltas from original value, not last')
 @click.argument(u'cmd', nargs=-1, required=False)
-def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):
+def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):  # pragma: no cover
     if cmd:
         feed = command_feed(cmd, interval)
-        separators = separators != 'never'
     else:
         feed = fd_feed(sys.stdin, interval)
-        separators = (
-            separators == 'always' or
-            (separators == 'auto' and skip_zeros and not timestamps))
 
-    if color == u'never':
-        color = False
-    elif color == u'always':
-        color = True
-    else:
-        color = os.isatty(sys.stdout.fileno())
+    separators = use_separators(cmd, separators, skip_zeros, timestamps)
+    color = use_colors(color, sys.stdin)
 
     parser = Parser(flex, absolute, color)
     printer = Printer(sys.stdout, timestamps, separators, orig, skip_zeros)
 
     try:
-        for line in feed:
-            if line is separator:
-                printer.separator()
-                continue
-            fmt, deltas, values = parser.process(line)
-            printer.output(fmt, deltas, values)
+        run(feed, parser, printer)
 
     except (KeyboardInterrupt, IOError):
         pass
 
-if __name__ == u'__main__':
+if __name__ == u'__main__':  # pragma: no cover
     cli()
