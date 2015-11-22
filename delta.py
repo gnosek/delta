@@ -222,51 +222,62 @@ class Printer(object):
             self.separators_pending += 1
 
     def print_separator(self):
-        fp = self.fp
         if self.timestamps:
-            fp.write(u'{0}\n'.format(self.now()))
+            return u'{0}\n'.format(self.now())
         else:
-            fp.write(u'--- {0}\n'.format(self.now()))
-        fp.flush()
+            return u'--- {0}\n'.format(self.now())
 
     def print_separator_if_needed(self):
-        if self.separators_pending == 0:
-            self.multiline = True
-
-        if self.separators_pending and (self.multiline or self.separators_pending > 1):
-            self.print_separator()
-            self.lines_since_sep = 0
-
+        sp = self.separators_pending
         self.separators_pending = 0
-        self.lines_since_sep += 1
+
+        if sp > 1:
+            self.lines_since_sep = 0
+            return self.print_separator()
+        elif sp and self.multiline:
+            self.lines_since_sep = 0
+            return self.print_separator()
 
     def print_line(self, line):
-        fp = self.fp
         if self.timestamps:
-            fp.write(u'{0}: '.format(self.now()))
-        fp.write(line)
-        fp.flush()
+            return u'{0}: {1}'.format(self.now(), line)
+        return line
 
-    def output(self, fmt, deltas, values):
+    def print_chunks(self, chunks):
+        for buf in chunks:
+            self.fp.write(buf)
+        self.fp.flush()
+
+    def make_output(self, fmt, deltas, values):
         if deltas is None:
-            self.print_separator_if_needed()
-            self.print_line(fmt.format(values))
+            yield self.print_line(fmt.format(values))
             return
 
         skip_delta = self.skip_zeros and all(d == 0 for d in deltas)
 
         if self.orig:
-            self.print_separator_if_needed()
             if len(values):
-                self.print_line(fmt.plain().format(values))
+                yield self.print_line(fmt.plain().format(values))
                 if not skip_delta:
-                    self.print_line(fmt.whitespace().format(deltas))
+                    yield self.print_line(fmt.whitespace().format(deltas))
             else:
-                self.print_line(fmt.format(values))
+                yield self.print_line(fmt.format(values))
         else:
             if not skip_delta:
-                self.print_separator_if_needed()
-                self.print_line(fmt.format(deltas))
+                yield self.print_line(fmt.format(deltas))
+
+
+    def output(self, fmt, deltas, values):
+        if self.separators_pending == 0:
+            self.multiline = True
+
+        chunks = [c for c in self.make_output(fmt, deltas, values) if c is not None]
+        if chunks:
+            sep = self.print_separator_if_needed()
+            if sep:
+                chunks = [sep] + chunks
+            self.lines_since_sep += 1
+        self.print_chunks(chunks)
 
 
 def stdin_feed(sep_interval):
