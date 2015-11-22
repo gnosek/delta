@@ -211,6 +211,10 @@ class Printer(object):
         self.lines_since_sep = 0
         self.multiline = False
 
+    @classmethod
+    def now(self):  # pragma: no cover
+        return time.asctime()
+
     def separator(self):
         if self.separators:
             if self.lines_since_sep == 1:
@@ -220,9 +224,9 @@ class Printer(object):
     def print_separator(self):
         fp = self.fp
         if self.timestamps:
-            fp.write(u'{0}\n'.format(time.asctime()))
+            fp.write(u'{0}\n'.format(self.now()))
         else:
-            fp.write(u'--- {0}\n'.format(time.asctime()))
+            fp.write(u'--- {0}\n'.format(self.now()))
         fp.flush()
 
     def print_separator_if_needed(self):
@@ -239,7 +243,7 @@ class Printer(object):
     def do_print_line(self, line):
         fp = self.fp
         if self.timestamps:
-            fp.write(u'{0}: '.format(time.asctime()))
+            fp.write(u'{0}: '.format(self.now()))
         fp.write(line)
         fp.flush()
 
