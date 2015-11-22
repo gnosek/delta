@@ -240,7 +240,7 @@ class Printer(object):
         self.separators_pending = 0
         self.lines_since_sep += 1
 
-    def do_print_line(self, line):
+    def print_line(self, line):
         fp = self.fp
         if self.timestamps:
             fp.write(u'{0}: '.format(self.now()))
@@ -250,7 +250,7 @@ class Printer(object):
     def output(self, fmt, deltas, values):
         if deltas is None:
             self.print_separator_if_needed()
-            self.do_print_line(fmt.format(values))
+            self.print_line(fmt.format(values))
             return
 
         skip_delta = self.skip_zeros and all(d == 0 for d in deltas)
@@ -258,15 +258,15 @@ class Printer(object):
         if self.orig:
             self.print_separator_if_needed()
             if len(values):
-                self.do_print_line(fmt.plain().format(values))
+                self.print_line(fmt.plain().format(values))
                 if not skip_delta:
-                    self.do_print_line(fmt.whitespace().format(deltas))
+                    self.print_line(fmt.whitespace().format(deltas))
             else:
-                self.do_print_line(fmt.format(values))
+                self.print_line(fmt.format(values))
         else:
             if not skip_delta:
                 self.print_separator_if_needed()
-                self.do_print_line(fmt.format(deltas))
+                self.print_line(fmt.format(deltas))
 
 
 def stdin_feed(sep_interval):
