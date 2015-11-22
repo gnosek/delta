@@ -181,7 +181,7 @@ class Parser(object):
                 chunks.append(StringChunk(prefix))
             if number is not None:
                 values.append(self.num(number))
-                chunks.append(NumberChunk.detect(spaces, number, i==0))
+                chunks.append(NumberChunk.detect(spaces, number, i==0 and not prefix))
                 
         fmt = Format(chunks, self.use_colors)
         self.values[fmt] = values
