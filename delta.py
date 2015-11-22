@@ -280,10 +280,10 @@ class Printer(object):
         self.print_chunks(chunks)
 
 
-def stdin_feed(sep_interval):
+def fd_feed(fd, sep_interval):
     while True:
         ts = time.time()
-        line = sys.stdin.readline()
+        line = fd.readline()
         if sys.version_info[0] == 2:
             line = line.decode(encoding)
         if not line:
@@ -328,7 +328,7 @@ def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, ab
         feed = command_feed(cmd, interval)
         separators = separators != 'never'
     else:
-        feed = stdin_feed(interval)
+        feed = fd_feed(sys.stdin, interval)
         separators = (
             separators == 'always' or
             (separators == 'auto' and skip_zeros and not timestamps))
