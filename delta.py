@@ -13,7 +13,7 @@ import string
 import locale
 try:
     from itertools import izip_longest
-except ImportError: # python 3
+except ImportError:  # pragma no cover, python 3
     from itertools import zip_longest as izip_longest
 
 if sys.version_info[0] == 2:
@@ -21,7 +21,7 @@ if sys.version_info[0] == 2:
     _, encoding = locale.getdefaultlocale()
     sys.stdout = codecs.getwriter(encoding)(sys.stdout)
 
-    if not hasattr(subprocess, 'check_output'):
+    if not hasattr(subprocess, 'check_output'):  # pragma no cover, python 2.6
         def check_output(cmd):
             return subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()[0]
         subprocess.check_output = check_output
@@ -52,7 +52,7 @@ class StringChunk(object):
     def as_regex(self):
         return re.escape(self.static_str)
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return "'{!r}'".format(self.static_str)
 
 
@@ -105,7 +105,7 @@ class NumberChunk(object):
     def format_str(self):
         return u'%s{0:%s%s%s%s}' % (self.prefix, self.align, self.plus, self.width, self.fmt)
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return self.format_str()
 
     @staticmethod
@@ -149,7 +149,7 @@ class Format(object):
     def format(self, values, use_colors=None):
         return ''.join(self.format_values(values, use_colors))
 
-    def __repr__(self):
+    def __repr__(self):  # pragma: no cover
         return repr(self.chunks)
 
 
