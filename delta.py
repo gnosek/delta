@@ -15,6 +15,11 @@ try:
     from itertools import izip_longest
 except ImportError:  # pragma no cover, python 3
     from itertools import zip_longest as izip_longest
+try:
+    from io import UnsupportedOperation
+except ImportError:
+    class UnsupportedOperation(Exception):
+        pass
 
 if sys.version_info[0] == 2:
     import codecs
@@ -294,12 +299,14 @@ def fd_feed(fd, sep_interval):
         yield line
 
 
-def command_feed(cmd, interval):
+def command_feed(cmd, interval, count=None):
     _, encoding = locale.getdefaultlocale()
     if len(cmd) == 1:
         shell = os.getenv(u'SHELL', u'/bin/sh')
         cmd = (shell, u'-c') + cmd
-    while True:
+    while count is None or count > 0:
+        if count is not None:
+            count -= 1
         output = subprocess.check_output(cmd)
         first = True
         for line in output.splitlines():
@@ -333,8 +340,28 @@ def use_colors(color, fd):
     elif color == u'always':
         return True
     else:
-        return os.isatty(fd.fileno())
+        try:
+            return os.isatty(fd.fileno())
+        except (AttributeError, UnsupportedOperation):
+            return False
 
+def real_cli(stdin, stdout, cmd, timestamps, interval, flex, separators, color, orig, skip_zeros, absolute, count):
+    if cmd:
+        feed = command_feed(cmd, interval, count)
+    else:
+        feed = fd_feed(stdin, interval)
+
+    separators = use_separators(cmd, separators, skip_zeros, timestamps)
+    color = use_colors(color, stdin)
+
+    parser = Parser(flex, absolute, color)
+    printer = Printer(stdout, timestamps, separators, orig, skip_zeros)
+
+    try:
+        run(feed, parser, printer)
+
+    except (KeyboardInterrupt, IOError):  # pragma: no cover
+        pass
 
 @click.command()
 @click.option(u'-t/-T', u'--timestamps/--no-timestamps', help=u'Show timestamps on all output lines')
@@ -348,24 +375,10 @@ def use_colors(color, fd):
 @click.option(u'-o/-O', u'--orig/--no-orig', help=u'Show original output interleaved with deltas')
 @click.option(u'-z/-Z', u'--skip-zeros/--with-zeros', help=u'Skip all-zero deltas')
 @click.option(u'-a/-A', u'--absolute/--relative', help=u'Show deltas from original value, not last')
+@click.option(u'-n', u'--count', metavar=u'NUMBER', type=click.INT, help=u'Number of command runs (default: until Ctrl-C')
 @click.argument(u'cmd', nargs=-1, required=False)
-def cli(timestamps, cmd, interval, flex, separators, color, orig, skip_zeros, absolute):  # pragma: no cover
-    if cmd:
-        feed = command_feed(cmd, interval)
-    else:
-        feed = fd_feed(sys.stdin, interval)
-
-    separators = use_separators(cmd, separators, skip_zeros, timestamps)
-    color = use_colors(color, sys.stdin)
-
-    parser = Parser(flex, absolute, color)
-    printer = Printer(sys.stdout, timestamps, separators, orig, skip_zeros)
-
-    try:
-        run(feed, parser, printer)
-
-    except (KeyboardInterrupt, IOError):
-        pass
+def cli(cmd, timestamps, interval, flex, separators, color, orig, skip_zeros, absolute, count):  # pragma: no cover
+    real_cli(sys.stdin, sys.stdout, cmd, timestamps, interval, flex, separators, color, orig, skip_zeros, absolute, count)
 
 if __name__ == u'__main__':  # pragma: no cover
     cli()
