@@ -1,5 +1,7 @@
 # Delta -- a quick tool to see changing numeric values in the shell
 
+![build status](https://travis-ci.org/gnosek/delta.svg)
+
 ## Motivation
 
 While debugging various issues you often get relevant data as always-increasing counters,
@@ -67,3 +69,5 @@ to autodetect the number format for pretty output.
 ## Installation
 
     pip install git+https://github.com/gnosek/delta
+
+Tested on Python 2.6, 2.7 and 3.5. Requires [Click](http://click.pocoo.org/) and [ansicolors](https://pypi.python.org/pypi/ansicolors).
